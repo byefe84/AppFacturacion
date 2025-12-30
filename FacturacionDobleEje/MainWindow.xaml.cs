@@ -1,8 +1,9 @@
-﻿using FacturacionDobleEje.Data;
-using FacturacionDobleEje.Models;
+﻿using FacturacionDobleEje.Models;
 using FacturacionDobleEje.Models.FacturacionConstruccion.Models;
+using FacturacionDobleEje.Repositories;
 using FacturacionDobleEje.Services;
 using Microsoft.Win32;
+using PdfSharp.Charting;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows;
@@ -14,20 +15,23 @@ namespace FacturacionDobleEje
 {
     public partial class MainWindow : Window
     {
-        private readonly MockRepository _repo;
-        private ObservableCollection<InvoiceLine> _lineas;
-        private Invoice _currentInvoice;
+        private readonly MaterialRepository _materialRepo;
+        private readonly ClientRepository _clientRepo;
+        private readonly AppDbContext _appDbContext;
+        private ObservableCollection<QuoteLine> _lineas;
+        private Quote _currentQuote;
 
         public MainWindow()
         {
-            _repo = new MockRepository();
-            _currentInvoice = new Invoice { Client = _repo.Clients.First() };
-            _lineas = new ObservableCollection<InvoiceLine>();
+            _appDbContext = new AppDbContext();
+            _materialRepo = new MaterialRepository(_appDbContext);
+            _clientRepo = new ClientRepository(_appDbContext);
+            _currentQuote = new Quote { Status = "Pendiente", Client = _clientRepo.GetAll().First() };
+            _lineas = new ObservableCollection<QuoteLine>();
 
             InitializeComponent();
-
-            dgMateriales.ItemsSource = _repo.Materials;
-            cbClientes.ItemsSource = _repo.Clients;
+            dgMateriales.ItemsSource = _materialRepo.GetAll();
+            cbClientes.ItemsSource = _clientRepo.GetAll();
             dgLineas.ItemsSource = _lineas;
             cbClientes.SelectedIndex = 0;
 
@@ -57,11 +61,11 @@ namespace FacturacionDobleEje
             var existing = _lineas.FirstOrDefault(l => l.Material.Id == mat.Id);
             if (existing != null)
             {
-                existing.Quantity += cantidad;
+                existing.Quantity += (double)cantidad;
             }
             else
             {
-                _lineas.Add(new InvoiceLine { Material = mat, Quantity = cantidad });
+                _lineas.Add(new QuoteLine { Quote = _currentQuote, Material = mat, Quantity = (double)cantidad });
             }
 
             dgLineas.Items.Refresh();
@@ -117,9 +121,9 @@ namespace FacturacionDobleEje
         private void UpdateTotals()
         {
             // ============================
-            // 0. Verificar que _repo y _currentInvoice existen
+            // 0. Verificar que _currentQuote existe
             // ============================
-            if (_repo == null || _currentInvoice == null)
+            if (_currentQuote == null)
                 return;
 
             // ============================
@@ -130,14 +134,14 @@ namespace FacturacionDobleEje
                 ivaPercent = 21m;
                 if (txtIVA != null) txtIVA.Text = "21";
             }
-            _currentInvoice.VATType = ivaPercent / 100m;
+            _currentQuote.VatType = (double)ivaPercent / 100;
 
             // ============================
             // 2. Leer descuento global
             // ============================
-            decimal discountPercent = 0m;
+            double discountPercent = 0;
             if (TryParseDecimalFlexible(txtDiscount.Text, out var d))
-                discountPercent = d / 100m;
+                discountPercent = (double)d / 100;
 
             // ============================
             // 3. Recalcular descuento por línea
@@ -156,11 +160,11 @@ namespace FacturacionDobleEje
             // ============================
             // 4. Calcular totales
             // ============================
-            _currentInvoice.Lines = _lineas?.ToList() ?? new List<InvoiceLine>();
+            _currentQuote.Lines = _lineas?.ToList() ?? new List<QuoteLine>();
 
-            decimal subtotal = _currentInvoice.Subtotal;
-            decimal ivaTotal = Math.Round(subtotal * _currentInvoice.VATType, 2, MidpointRounding.AwayFromZero);
-            decimal total = subtotal + ivaTotal;
+            double subtotal = _currentQuote.Subtotal;
+            double ivaTotal = Math.Round(subtotal * _currentQuote.VatType, 2, MidpointRounding.AwayFromZero);
+            double total = subtotal + ivaTotal;
 
             // ============================
             // 5. Actualizar UI
@@ -215,13 +219,13 @@ namespace FacturacionDobleEje
             value = 0m;
             if (string.IsNullOrWhiteSpace(input)) return false;
 
-            // 1) Intentar con la cultura actual (ej. es-ES usa ',')
-            if (decimal.TryParse(input, NumberStyles.Number, CultureInfo.CurrentCulture, out value))
-                return true;
-
-            // 2) Intentar con la cultura invariante (usa '.')
+            // 1) Intentar con la cultura invariante (usa '.')
             var normalized = input.Replace(',', '.');
             if (decimal.TryParse(normalized, NumberStyles.Number, CultureInfo.InvariantCulture, out value))
+                return true;
+
+            // 2) Intentar con la cultura actual (ej. es-ES usa ',')
+            if (decimal.TryParse(input, NumberStyles.Number, CultureInfo.CurrentCulture, out value))
                 return true;
 
             // 3) Intentar reemplazando '.' por ',' y volver a probar con cultura actual
@@ -249,12 +253,12 @@ namespace FacturacionDobleEje
                 return;
             }
 
-            _currentInvoice.Client = cliente;
+            _currentQuote.Client = cliente;
 
             // Guardar como PDF
             var dlg = new SaveFileDialog
             {
-                FileName = $"Presupuesto_{_currentInvoice.Reference}.pdf",
+                FileName = $"Presupuesto_{_currentQuote.Reference}.pdf",
                 Filter = "PDF Files|*.pdf"
             };
 
@@ -263,7 +267,7 @@ namespace FacturacionDobleEje
                 try
                 {
                     var pdfGen = new PdfGenerator();
-                    pdfGen.GenerateInvoicePdf(_currentInvoice, dlg.FileName);
+                    pdfGen.GenerateInvoicePdf(_currentQuote, dlg.FileName);
 
                     MessageBox.Show("PDF generado correctamente.", "Listo", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
@@ -282,14 +286,22 @@ namespace FacturacionDobleEje
                 "Nuevo material",
                 "");
 
-            if (string.IsNullOrWhiteSpace(nombre))
-                return;
+            if (string.IsNullOrWhiteSpace(nombre)) return;
 
-            // 2. Pedir precio
+            // 2. Pedir referencia
+            string referencia = Microsoft.VisualBasic.Interaction.InputBox(
+                "Introduce la referencia del material (Si la tiene):",
+                "Nuevo material",
+                "");
+
+            if (string.IsNullOrWhiteSpace(referencia)) referencia = "";
+
+            // 3. Pedir precio
             string strPrecio = Microsoft.VisualBasic.Interaction.InputBox(
                 "Introduce el precio por unidad (€):",
                 "Nuevo material",
                 "0,00");
+            if (string.IsNullOrWhiteSpace(strPrecio)) return;
 
             if (!TryParseDecimalFlexible(strPrecio, out decimal precio) || precio < 0)
             {
@@ -297,32 +309,27 @@ namespace FacturacionDobleEje
                 return;
             }
 
-            // 3. Pedir unidad de medida
+            // 4. Pedir unidad de medida
             string unidad = Microsoft.VisualBasic.Interaction.InputBox(
                 "Introduce la unidad (m³, m², kg, ud, etc.):",
                 "Nuevo material",
                 "ud");
 
-            if (string.IsNullOrWhiteSpace(unidad))
-                unidad = "ud";
-
-            // 4. Crear nuevo ID (mock, ya que no hay BD real)
-            int newId = _repo.Materials.Any()
-                ? _repo.Materials.Max(m => m.Id) + 1
-                : 1;
+            if (string.IsNullOrWhiteSpace(unidad)) unidad = "ud";
 
             // 5. Crear y añadir material
             var newMaterial = new Material
             {
-                Id = newId,
+                Code = referencia,
                 Name = nombre,
-                UnitPrice = precio,
+                UnitPrice = (double)precio,
                 Unit = unidad
             };
 
-            _repo.Materials.Add(newMaterial);
+            _materialRepo.Add(newMaterial);
 
             // 6. Refrescar DataGrid
+            dgMateriales.ItemsSource = _materialRepo.GetAll();
             dgMateriales.Items.Refresh();
 
             MessageBox.Show("Material añadido correctamente.", "Listo", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -330,67 +337,58 @@ namespace FacturacionDobleEje
 
         private void BtnNuevoCliente_Click(object sender, RoutedEventArgs e)
         {
-            // 1. Pedir datos uno por uno
+
             string nombre = Microsoft.VisualBasic.Interaction.InputBox(
                 "Introduce el nombre del cliente:",
                 "Nuevo cliente",
                 "");
-
-            if (string.IsNullOrWhiteSpace(nombre))
-                return;
+            if (string.IsNullOrWhiteSpace(nombre)) return;
 
             string direccion = Microsoft.VisualBasic.Interaction.InputBox(
                 "Introduce la dirección del cliente:",
                 "Nuevo cliente",
                 "");
+            if (string.IsNullOrWhiteSpace(direccion)) return;
 
-            if (string.IsNullOrWhiteSpace(direccion))
-                direccion = "";
-
-            string nif = Microsoft.VisualBasic.Interaction.InputBox(
-                "Introduce el NIF del cliente:",
+            string docType = Microsoft.VisualBasic.Interaction.InputBox(
+                "El cliente tiene CIF o NIF?:",
                 "Nuevo cliente",
                 "");
+            if (string.IsNullOrWhiteSpace(docType)) docType = "CIF";
 
-            if (string.IsNullOrWhiteSpace(nif))
-                nif = "";
+            string nif = Microsoft.VisualBasic.Interaction.InputBox(
+                "Introduce el " + docType + " del cliente:",
+                "Nuevo cliente",
+                "");
+            if (string.IsNullOrWhiteSpace(nif)) return;
 
             string telefono = Microsoft.VisualBasic.Interaction.InputBox(
                 "Introduce el teléfono del cliente:",
                 "Nuevo cliente",
                 "");
-
-            if (string.IsNullOrWhiteSpace(telefono))
-                telefono = "";
+            if (string.IsNullOrWhiteSpace(telefono)) return;
 
             string email = Microsoft.VisualBasic.Interaction.InputBox(
                 "Introduce el email del cliente:",
                 "Nuevo cliente",
                 "");
+            if (string.IsNullOrWhiteSpace(email)) return;
 
-            if (string.IsNullOrWhiteSpace(email))
-                email = "";
 
-            // 2. Crear nuevo ID
-            int newId = _repo.Clients.Any()
-                ? _repo.Clients.Max(c => c.Id) + 1
-                : 1;
-
-            // 3. Crear cliente
             var newClient = new Client
             {
-                Id = newId,
                 Name = nombre,
-                Adress = direccion,
-                NIF = nif,
+                Address = direccion,
+                DocType = docType,
+                Document = nif,
                 PhoneNumber = telefono,
                 Email = email
             };
 
-            // 4. Añadirlo al repositorio
-            _repo.Clients.Add(newClient);
+            _clientRepo.Add(newClient);
 
-            // 5. Actualizar ComboBox
+            // Actualizar ComboBox
+            cbClientes.ItemsSource = _clientRepo.GetAll();
             cbClientes.Items.Refresh();
             cbClientes.SelectedItem = newClient;
 

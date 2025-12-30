@@ -1,25 +1,26 @@
-﻿using FacturacionDobleEje.Data;
-using FacturacionDobleEje.Models;
+﻿using FacturacionDobleEje.Models;
+using FacturacionDobleEje.Repositories;
 using MigraDoc.DocumentObjectModel;
 using MigraDoc.DocumentObjectModel.Shapes;
 using MigraDoc.Rendering;
+using System.IO;
 
 namespace FacturacionDobleEje.Services
 {
     public class PdfGenerator
     {
-        private readonly MockRepository _repo;
+        private readonly CompanyRepository _companyRepository;
 
         public PdfGenerator()
         {
-            _repo = new MockRepository();
+            _companyRepository = new CompanyRepository();
         }
 
-        public void GenerateInvoicePdf(Invoice invoice, string outputPath)
+        public void GenerateInvoicePdf(Quote quote, string outputPath)
         {
             var doc = new Document();
-            doc.Info.Title = $"Factura Nº 20";
-            doc.Info.Author = invoice.Client.Name;
+            doc.Info.Title = $"Presupuesto Nº: " + quote.Reference;
+            doc.Info.Author = quote.Client.Name;
 
             // Estilos generales
             var style = doc.Styles["Normal"];
@@ -32,20 +33,17 @@ namespace FacturacionDobleEje.Services
             section.PageSetup.LeftMargin = Unit.FromCentimeter(1.5);
             section.PageSetup.RightMargin = Unit.FromCentimeter(1.5);
 
-            // Cabecera empresa desde MockRepository
-            var empresa = _repo.MyCompany;
+            // Cabecera empresa
+            var empresa = _companyRepository.GetAll().First();
 
             if (empresa.LogoPath != null)
             {
-                // Añadir imagen del logo
-                var logoPath = empresa.LogoPath;
-                var image = section.AddImage(logoPath);
+                // Combinar la ruta base de la app con la ruta relativa del logo
+                string logoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, empresa.LogoPath);
 
-                // Ajustar tamaño opcionalmente
+                var image = section.AddImage(logoPath);
                 image.Width = Unit.FromCentimeter(3);
                 image.LockAspectRatio = true;
-
-                // Alinear a la izquierda
                 image.Left = ShapePosition.Left;
             }
 
@@ -55,14 +53,14 @@ namespace FacturacionDobleEje.Services
             header.AddLineBreak();
             header.AddLineBreak();
             header.AddFormattedText(empresa.Name, TextFormat.Bold);
-            header.AddLineBreak(); 
-            header.AddText(empresa.Adress);
-            //header.AddLineBreak(); 
-            //header.AddText("NIF: " + empresa.NIF);
-            header.AddLineBreak(); 
+            header.AddLineBreak();
+            header.AddText(empresa.Address);
+            header.AddLineBreak();
+            header.AddText(empresa.DocType + ": " + empresa.Document);
+            header.AddLineBreak();
             header.AddText($"Tel: {empresa.PhoneNumber} - {empresa.Email}");
             header.AddLineBreak();
-            header.AddText($"Número de cuenta: ES94 2100 2322 4102 4558");
+            header.AddText($"Número de cuenta: " + empresa.Account);
 
             // Info cliente y factura
             var tableInfo = section.AddTable();
@@ -76,23 +74,23 @@ namespace FacturacionDobleEje.Services
             pLeft.Format.Font.Size = 14;
             pLeft.AddFormattedText("Cliente:", TextFormat.Bold);
             pLeft.AddLineBreak();
-            pLeft.AddText(invoice.Client.Name);
+            pLeft.AddText(quote.Client.Name);
             pLeft.AddLineBreak();
-            pLeft.AddText(invoice.Client.Adress);
+            pLeft.AddText(quote.Client.Address);
             pLeft.AddLineBreak();
-            pLeft.AddText("CIF: " + invoice.Client.NIF);
+            pLeft.AddText(quote.Client.DocType + ": " + quote.Client.Document);
 
             var pRight = row.Cells[1].AddParagraph();
             pRight.Format.Alignment = ParagraphAlignment.Right;
             pRight.Format.Font.Size = 14;
-            //pRight.AddFormattedText("Factura:", TextFormat.Bold);
-            //pRight.AddLineBreak();
-            pRight.AddText("Nº Presupuesto: " + invoice.Reference);
+            pRight.AddText("Nº Presupuesto: ");
             pRight.AddLineBreak();
-            pRight.AddText("Fecha: " + invoice.Date.ToString("dd/MM/yyyy"));
+            pRight.AddText(quote.Reference);
+            pRight.AddLineBreak();
+            pRight.AddText("Fecha: " + quote.Date.ToString("dd/MM/yyyy"));
             section.AddParagraph().AddLineBreak();
 
-            bool showDiscountColumn = invoice.Lines.Any(l => l.DiscountAmount > 0);
+            bool showDiscountColumn = quote.Lines.Any(l => l.DiscountAmount > 0);
 
             var table = section.AddTable();
             table.Borders.Width = 0;
@@ -134,7 +132,7 @@ namespace FacturacionDobleEje.Services
 
             hdr.Cells[colIndex].AddParagraph("Importe (€)");
 
-            foreach (var line in invoice.Lines)
+            foreach (var line in quote.Lines)
             {
                 var r = table.AddRow();
 
@@ -168,15 +166,15 @@ namespace FacturacionDobleEje.Services
 
             var rSub = totTable.AddRow();
             rSub.Cells[0].AddParagraph("").Format.Alignment = ParagraphAlignment.Right;
-            rSub.Cells[1].AddParagraph("Subtotal: " + invoice.Subtotal.ToString("0.00") + " €");
+            rSub.Cells[1].AddParagraph("Subtotal: " + quote.Subtotal.ToString("0.00") + " €");
 
             var rIva = totTable.AddRow();
             rIva.Cells[0].AddParagraph("").Format.Alignment = ParagraphAlignment.Right;
-            rIva.Cells[1].AddParagraph($"IVA ({invoice.VATType * 100:0}%): {invoice.VAT:0.00} €");
+            rIva.Cells[1].AddParagraph($"IVA ({quote.VatType * 100:0}%): {quote.Vat:0.00} €");
 
             var rTotal = totTable.AddRow();
             rTotal.Cells[0].AddParagraph("").Format.Alignment = ParagraphAlignment.Right;
-            rTotal.Cells[1].AddParagraph("Total: " + invoice.Total.ToString("0.00") + " €");
+            rTotal.Cells[1].AddParagraph("Total: " + quote.Total.ToString("0.00") + " €");
             rTotal.Cells[1].Format.Font.Bold = true;
 
             rSub.Cells[1].Format.Font.Size = 12;

@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using System.Collections.ObjectModel;
 
 namespace FacturacionDobleEje.Models
 {
@@ -10,7 +8,7 @@ namespace FacturacionDobleEje.Models
         public string Reference { get; set; } = $"P-{DateTime.Now:yyyyMMddHHmmss}";
         public DateTime Date { get; set; } = DateTime.Now;
         public required Client Client { get; set; }
-        public List<QuoteLine> Lines { get; set; } = new List<QuoteLine>();
+        public ObservableCollection<QuoteLine> Lines { get; set; } = new ObservableCollection<QuoteLine>();
         public decimal VatType { get; set; } = 0.21m;
 
         public decimal Subtotal => Lines.Sum(l => l.Amount);

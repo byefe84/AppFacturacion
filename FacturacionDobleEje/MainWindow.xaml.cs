@@ -130,7 +130,7 @@ namespace FacturacionDobleEje
 
             _currentQuote.VatType = ivaPercent / 100m;
 
-            _currentQuote.Lines = _lineas.ToList();
+            _currentQuote.Lines = _lineas;
 
             decimal subtotal = _currentQuote.Subtotal;
             decimal ivaTotal = Math.Round(subtotal * _currentQuote.VatType, 2, MidpointRounding.AwayFromZero);
@@ -453,7 +453,7 @@ namespace FacturacionDobleEje
                         Reference = facturaRef,          // Usamos la referencia de factura
                         Date = _currentQuote.Date,      // Mantenemos la fecha
                         Client = _currentQuote.Client,
-                        Lines = _lineas.ToList(),
+                        Lines = _lineas,
                         Status = "Pendiente",
                         VatType = _currentQuote.VatType
                     };
@@ -472,6 +472,16 @@ namespace FacturacionDobleEje
                 {
                     MessageBox.Show($"Error generando PDF: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
+            }
+        }
+
+        private void EliminarLinea_Click(object sender, RoutedEventArgs e)
+        {
+            if (dgLineas.SelectedItem is QuoteLine linea)
+            {
+                linea.Quote.Lines.Remove(linea);
+
+                UpdateTotals();
             }
         }
     }

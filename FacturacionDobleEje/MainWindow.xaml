@@ -90,6 +90,11 @@
                 </StackPanel>
 
                 <DataGrid x:Name="dgLineas" Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False" Margin="8" CellEditEnding="dgLineas_CellEditEnding" PreviewTextInput="dg_PreviewTextInput" DataObject.Pasting="dg_Pasting">
+                    <DataGrid.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Eliminar línea" Click="EliminarLinea_Click"/>
+                        </ContextMenu>
+                    </DataGrid.ContextMenu>
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Material" Binding="{Binding Material.Name}" Width="*" IsReadOnly="True" />
                         <DataGridTextColumn Header="Cantidad" Binding="{Binding Quantity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="90"/>

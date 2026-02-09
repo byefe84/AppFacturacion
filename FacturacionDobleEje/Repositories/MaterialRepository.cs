@@ -22,5 +22,11 @@ namespace FacturacionDobleEje.Repositories
             _context.Materials.Add(material);
             _context.SaveChanges();
         }
+
+        public void Update(Material material)
+        {
+            _context.Materials.Update(material);
+            _context.SaveChanges();
+        }
     }
 }

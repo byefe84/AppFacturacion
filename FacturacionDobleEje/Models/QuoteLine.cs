@@ -7,11 +7,11 @@ namespace FacturacionDobleEje.Models
         public long Id { get; set; }
         public required Quote Quote { get; set; }
         public required Material Material { get; set; }
-        public required double Quantity { get; set; }
-        public double UnitPrice => Material.UnitPrice;
-        public double DiscountAmount { get; set; }
-        public double GrossAmount => Quantity * UnitPrice;
-        public double Amount => Math.Round(Quantity * UnitPrice - DiscountAmount, 2, MidpointRounding.AwayFromZero);
+        public required int Quantity { get; set; }
+        public decimal UnitPrice => Material.UnitPrice;
+        public decimal DiscountAmount { get; set; }
+        public decimal GrossAmount => Quantity * UnitPrice;
+        public decimal Amount => Math.Round(Quantity * UnitPrice - DiscountAmount, 2, MidpointRounding.AwayFromZero);
         public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
     }
 }

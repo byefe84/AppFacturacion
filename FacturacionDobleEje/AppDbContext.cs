@@ -34,6 +34,9 @@ namespace FacturacionDobleEje
                 entity.Property(e => e.Name)
                       .HasColumnName("NAME");
 
+                entity.Property(e => e.Description)
+                      .HasColumnName("DESCRIPTION");
+
                 entity.Property(e => e.UnitPrice)
                       .HasColumnName("UNIT_PRICE");
 
@@ -41,6 +44,7 @@ namespace FacturacionDobleEje
                       .HasColumnName("UNIT");
 
                 entity.Property(e => e.CreatedOn)
+                      .HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc))
                       .HasColumnName("CREATED_ON");
             });
             modelBuilder.Entity<Client>(entity =>
@@ -71,6 +75,7 @@ namespace FacturacionDobleEje
                       .HasColumnName("EMAIL");
 
                 entity.Property(e => e.CreatedOn)
+                      .HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc))
                       .HasColumnName("CREATED_ON");
             });
             modelBuilder.Entity<Company>(entity =>
@@ -103,10 +108,14 @@ namespace FacturacionDobleEje
                 entity.Property(e => e.LogoPath)
                       .HasColumnName("LOGOPATH");
 
+                entity.Property(e => e.WatermarkPath)
+                      .HasColumnName("WATERMARKPATH");
+
                 entity.Property(e => e.Account)
                       .HasColumnName("ACCOUNT");
 
                 entity.Property(e => e.CreatedOn)
+                      .HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc))
                       .HasColumnName("CREATED_ON");
             });
         }

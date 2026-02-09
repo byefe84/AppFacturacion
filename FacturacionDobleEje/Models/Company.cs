@@ -15,6 +15,7 @@ namespace FacturacionDobleEje.Models
         public required string Email { get; set; }
         public required string Account { get; set; }
         public string? LogoPath { get; set; }
+        public string? WatermarkPath { get; set; }
         public required DateTime CreatedOn { get; set; } = DateTime.UtcNow;
     }
 }

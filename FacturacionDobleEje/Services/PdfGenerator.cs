@@ -18,6 +18,8 @@ namespace FacturacionDobleEje.Services
 
         public void GenerateInvoicePdf(Quote quote, string outputPath)
         {
+            var empresa = _companyRepository.GetAll().First();
+
             var doc = new Document();
             doc.Info.Title = $"Presupuesto Nº: " + quote.Reference;
             doc.Info.Author = quote.Client.Name;
@@ -28,20 +30,31 @@ namespace FacturacionDobleEje.Services
             style?.Font.Size = 12;
 
             var section = doc.AddSection();
+            if (!string.IsNullOrEmpty(empresa.WatermarkPath) && File.Exists(empresa.WatermarkPath))
+            {
+                var watermark = section.Headers.Primary.AddImage(empresa.WatermarkPath);
+
+                watermark.RelativeVertical = RelativeVertical.Page;
+                watermark.RelativeHorizontal = RelativeHorizontal.Page;
+
+                watermark.Top = ShapePosition.Center;
+                watermark.Left = ShapePosition.Center;
+
+                watermark.Width = Unit.FromCentimeter(15);
+                watermark.LockAspectRatio = true;
+
+                watermark.WrapFormat.Style = WrapStyle.None;
+            }
             section.PageSetup.TopMargin = Unit.FromCentimeter(1.5);
             section.PageSetup.BottomMargin = Unit.FromCentimeter(1.5);
             section.PageSetup.LeftMargin = Unit.FromCentimeter(1.5);
             section.PageSetup.RightMargin = Unit.FromCentimeter(1.5);
 
             // Cabecera empresa
-            var empresa = _companyRepository.GetAll().First();
 
             if (empresa.LogoPath != null)
             {
-                // Combinar la ruta base de la app con la ruta relativa del logo
-                string logoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, empresa.LogoPath);
-
-                var image = section.AddImage(logoPath);
+                var image = section.AddImage(empresa.LogoPath);
                 image.Width = Unit.FromCentimeter(3);
                 image.LockAspectRatio = true;
                 image.Left = ShapePosition.Left;

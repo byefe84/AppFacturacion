@@ -61,11 +61,11 @@ namespace FacturacionDobleEje
             var existing = _lineas.FirstOrDefault(l => l.Material.Id == mat.Id);
             if (existing != null)
             {
-                existing.Quantity += (double)cantidad;
+                existing.Quantity += (int)cantidad;
             }
             else
             {
-                _lineas.Add(new QuoteLine { Quote = _currentQuote, Material = mat, Quantity = (double)cantidad });
+                _lineas.Add(new QuoteLine { Quote = _currentQuote, Material = mat, Quantity = (int)cantidad });
             }
 
             dgLineas.Items.Refresh();
@@ -134,14 +134,14 @@ namespace FacturacionDobleEje
                 ivaPercent = 21m;
                 if (txtIVA != null) txtIVA.Text = "21";
             }
-            _currentQuote.VatType = (double)ivaPercent / 100;
+            _currentQuote.VatType = (decimal)ivaPercent / 100;
 
             // ============================
             // 2. Leer descuento global
             // ============================
-            double discountPercent = 0;
+            decimal discountPercent = 0;
             if (TryParseDecimalFlexible(txtDiscount.Text, out var d))
-                discountPercent = (double)d / 100;
+                discountPercent = (decimal)d / 100;
 
             // ============================
             // 3. Recalcular descuento por línea
@@ -162,9 +162,9 @@ namespace FacturacionDobleEje
             // ============================
             _currentQuote.Lines = _lineas?.ToList() ?? new List<QuoteLine>();
 
-            double subtotal = _currentQuote.Subtotal;
-            double ivaTotal = Math.Round(subtotal * _currentQuote.VatType, 2, MidpointRounding.AwayFromZero);
-            double total = subtotal + ivaTotal;
+            decimal subtotal = _currentQuote.Subtotal;
+            decimal ivaTotal = Math.Round(subtotal * _currentQuote.VatType, 2, MidpointRounding.AwayFromZero);
+            decimal total = subtotal + ivaTotal;
 
             // ============================
             // 5. Actualizar UI
@@ -322,7 +322,7 @@ namespace FacturacionDobleEje
             {
                 Code = referencia,
                 Name = nombre,
-                UnitPrice = (double)precio,
+                UnitPrice = (decimal)precio,
                 Unit = unidad
             };
 
@@ -411,6 +411,22 @@ namespace FacturacionDobleEje
                 Dispatcher.BeginInvoke((Action)(() =>
                 {
                     UpdateTotals();
+                }), DispatcherPriority.Background);
+            }
+        }
+
+        private void dgMateriales_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
+        {
+            if (e.EditAction == DataGridEditAction.Commit)
+            {
+                Dispatcher.BeginInvoke((Action)(() =>
+                {
+                    var material = e.Row.Item as Material;
+                    if (material != null)
+                    {
+                        _materialRepo.Update(material);
+                    }
+
                 }), DispatcherPriority.Background);
             }
         }

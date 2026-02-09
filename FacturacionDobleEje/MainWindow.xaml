@@ -94,8 +94,9 @@
                         <DataGridTextColumn Header="Material" Binding="{Binding Material.Name}" Width="*" IsReadOnly="True" />
                         <DataGridTextColumn Header="Cantidad" Binding="{Binding Quantity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="90"/>
                         <DataGridTextColumn Header="Precio u. (€)" Binding="{Binding UnitPrice}" Width="100" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="Beneficio (%)" Binding="{Binding ProfitPercent, UpdateSourceTrigger=PropertyChanged}" Width="110"/>
                         <DataGridTextColumn Header="Descuento (%)" Binding="{Binding DiscountPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="110"/>
-                        <DataGridTextColumn Header="Importe (€)" Binding="{Binding Amount}" Width="100" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="Importe (€)" Binding="{Binding Amount, StringFormat=F2}" Width="100" IsReadOnly="True"/>
                     </DataGrid.Columns>
                 </DataGrid>
 

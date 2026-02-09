@@ -112,10 +112,10 @@ namespace FacturacionDobleEje.Services
             if (showDiscountColumn)
             {
                 table.AddColumn(Unit.FromCentimeter(3.5)); // Nombre
-                table.AddColumn(Unit.FromCentimeter(4.5));   // Descripción
+                table.AddColumn(Unit.FromCentimeter(4.25));   // Descripción
                 table.AddColumn(Unit.FromCentimeter(2));   // Cantidad
-                table.AddColumn(Unit.FromCentimeter(2.5)); // Precio unitario
-                table.AddColumn(Unit.FromCentimeter(3)); // Descuento
+                table.AddColumn(Unit.FromCentimeter(2.25)); // Precio unitario
+                table.AddColumn(Unit.FromCentimeter(3.5)); // Descuento
                 table.AddColumn(Unit.FromCentimeter(2.5)); // Importe
             }
             else
@@ -143,7 +143,7 @@ namespace FacturacionDobleEje.Services
 
             if (showDiscountColumn)
             {
-                hdr.Cells[colIndex].AddParagraph("Descuento (€)");
+                hdr.Cells[colIndex].AddParagraph("Descuento (%)");
                 colIndex++;
             }
 
@@ -156,18 +156,21 @@ namespace FacturacionDobleEje.Services
                 r.Cells[0].AddParagraph(line.Material.Name);
                 r.Cells[1].AddParagraph(line.Material.Description ?? "");
                 r.Cells[2].AddParagraph(line.Quantity.ToString("0.##"));
-                r.Cells[3].AddParagraph(line.UnitPrice.ToString("0.00"));
+                var pUnit = r.Cells[3].AddParagraph(line.SaleUnitPrice.ToString("0.00"));
+                pUnit.Format.Alignment = ParagraphAlignment.Right;
 
                 int c = 4;
 
                 if (showDiscountColumn)
                 {
-                    r.Cells[c].AddParagraph(line.DiscountAmount.ToString("0.00"));
+                    var pDiscount = r.Cells[c].AddParagraph(line.DiscountPercent != 0 ? line.DiscountPercent.ToString() : "");
+                    pDiscount.Format.Alignment = ParagraphAlignment.Center;
                     c++;
                 }
 
                 // importe neto
-                r.Cells[c].AddParagraph((line.Amount).ToString("0.00"));
+                var pImporte = r.Cells[c].AddParagraph(line.Amount.ToString("0.00"));
+                pImporte.Format.Alignment = ParagraphAlignment.Right;
 
                 r.Borders.Bottom.Width = 0.5;
                 r.Borders.Bottom.Style = BorderStyle.DashSmallGap;
@@ -206,6 +209,92 @@ namespace FacturacionDobleEje.Services
             }; 
             renderer.RenderDocument();
             renderer.PdfDocument.Save(outputPath);
-        } 
+        }
+
+        public void GenerateInternalCostsPdf(Quote quote, string outputPath)
+        {
+            var empresa = _companyRepository.GetAll().First();
+
+            var doc = new Document();
+            doc.Info.Title = $"Hoja interna - {quote.Reference}";
+            doc.Info.Author = empresa.Name;
+
+            var style = doc.Styles["Normal"];
+            style.Font.Name = "Arial";
+            style.Font.Size = 11;
+
+            var section = doc.AddSection();
+
+            // Título
+            var title = section.AddParagraph($"HOJA INTERNA DE GASTOS Y BENEFICIOS");
+            title.Format.Font.Size = 16;
+            title.Format.Font.Bold = true;
+            title.Format.SpaceAfter = Unit.FromCentimeter(0.5);
+
+            section.AddParagraph($"Documento: {quote.Reference}");
+            section.AddParagraph($"Fecha: {quote.Date:dd/MM/yyyy}");
+            section.AddParagraph($"Cliente: {quote.Client.Name}");
+            section.AddParagraph().AddLineBreak();
+
+            // ---- TABLA ----
+
+            var table = section.AddTable();
+            table.Borders.Width = 0.5;
+
+            table.AddColumn(Unit.FromCentimeter(9));
+            table.AddColumn(Unit.FromCentimeter(4));
+            table.AddColumn(Unit.FromCentimeter(4));
+
+            // Header
+            var hdr = table.AddRow();
+            hdr.Shading.Color = Colors.LightGray;
+
+            hdr.Cells[0].AddParagraph("Material");
+            hdr.Cells[1].AddParagraph("Gastos (€)").Format.Alignment = ParagraphAlignment.Right;
+            hdr.Cells[2].AddParagraph("Beneficio (€)").Format.Alignment = ParagraphAlignment.Right;
+
+            decimal totalCost = 0;
+            decimal totalProfit = 0;
+
+            foreach (var line in quote.Lines)
+            {
+                decimal cost = line.Quantity * line.UnitPrice;
+                decimal profit = (line.Quantity * (line.SaleUnitPrice - line.UnitPrice)) - line.DiscountAmount;
+
+                totalCost += cost;
+                totalProfit += profit;
+
+                var row = table.AddRow();
+
+                row.Cells[0].AddParagraph(line.Material.Name);
+
+                var pCost = row.Cells[1].AddParagraph(cost.ToString("0.00"));
+                pCost.Format.Alignment = ParagraphAlignment.Right;
+
+                var pProfit = row.Cells[2].AddParagraph(profit.ToString("0.00"));
+                pProfit.Format.Alignment = ParagraphAlignment.Right;
+            }
+
+            // ---- FILA TOTAL ----
+
+            var totalRow = table.AddRow();
+            totalRow.Format.Font.Bold = true;
+            totalRow.Borders.Top.Width = 1;
+
+            totalRow.Cells[0].AddParagraph("TOTAL");
+
+            totalRow.Cells[1].AddParagraph(totalCost.ToString("0.00"))
+                .Format.Alignment = ParagraphAlignment.Right;
+
+            decimal percent = totalCost == 0 ? 0 : (totalProfit / totalCost) * 100m;
+
+            totalRow.Cells[2].AddParagraph($"{totalProfit:0.00} ({percent:0.##}%)")
+                .Format.Alignment = ParagraphAlignment.Right;
+
+            // Render
+            var renderer = new PdfDocumentRenderer() { Document = doc };
+            renderer.RenderDocument();
+            renderer.PdfDocument.Save(outputPath);
+        }
     }
 }

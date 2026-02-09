@@ -3,9 +3,9 @@ using FacturacionDobleEje.Models.FacturacionConstruccion.Models;
 using FacturacionDobleEje.Repositories;
 using FacturacionDobleEje.Services;
 using Microsoft.Win32;
-using PdfSharp.Charting;
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -238,8 +238,13 @@ namespace FacturacionDobleEje
             {
                 try
                 {
+                    //Generación del PDF de Presupuesto
                     var pdfGen = new PdfGenerator();
                     pdfGen.GenerateInvoicePdf(_currentQuote, dlg.FileName);
+
+                    //Generación del PDF de Gastos/Beneficios
+                    string internalPath = Path.Combine(Path.GetDirectoryName(dlg.FileName)!,$"Interno_{_currentQuote.Reference}.pdf");
+                    pdfGen.GenerateInternalCostsPdf(_currentQuote, internalPath);
 
                     MessageBox.Show("PDF generado correctamente.", "Listo", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
@@ -421,10 +426,13 @@ namespace FacturacionDobleEje
             string facturaRef = Microsoft.VisualBasic.Interaction.InputBox(
                 "Introduce el número de factura:",
                 "Número de factura",
-                "");
+                $"F-{DateTime.Now:yyyyMMddHHmmss}");
 
             if (string.IsNullOrWhiteSpace(facturaRef))
+            {
+                MessageBox.Show("Añade un número de referencia a la factura.", "Atención", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
+            }
 
             _currentQuote.Client = cliente;
 
@@ -450,8 +458,13 @@ namespace FacturacionDobleEje
                         VatType = _currentQuote.VatType
                     };
 
+                    //Generación del PDF de Factura
                     var pdfGen = new PdfGenerator();
                     pdfGen.GenerateInvoicePdf(facturaCopy, dlg.FileName, isFactura: true); // nuevo parámetro opcional
+
+                    //Generación del PDF de Gastos/Beneficios
+                    string internalPath = Path.Combine(Path.GetDirectoryName(dlg.FileName)!, $"Interno_{facturaRef}.pdf");
+                    pdfGen.GenerateInternalCostsPdf(facturaCopy, internalPath);
 
                     MessageBox.Show("Factura generada correctamente.", "Listo", MessageBoxButton.OK, MessageBoxImage.Information);
                 }

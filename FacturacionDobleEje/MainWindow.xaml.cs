@@ -68,7 +68,6 @@ namespace FacturacionDobleEje
                 _lineas.Add(new QuoteLine { Quote = _currentQuote, Material = mat, Quantity = (int)cantidad });
             }
 
-            dgLineas.Items.Refresh();
             UpdateTotals();
         }
 
@@ -120,58 +119,31 @@ namespace FacturacionDobleEje
 
         private void UpdateTotals()
         {
-            // ============================
-            // 0. Verificar que _currentQuote existe
-            // ============================
             if (_currentQuote == null)
                 return;
 
-            // ============================
-            // 1. Leer IVA con parseo flexible
-            // ============================
             if (!TryParseDecimalFlexible(txtIVA.Text, out var ivaPercent))
             {
                 ivaPercent = 21m;
-                if (txtIVA != null) txtIVA.Text = "21";
-            }
-            _currentQuote.VatType = (decimal)ivaPercent / 100;
-
-            // ============================
-            // 2. Leer descuento global
-            // ============================
-            decimal discountPercent = 0;
-            if (TryParseDecimalFlexible(txtDiscount.Text, out var d))
-                discountPercent = (decimal)d / 100;
-
-            // ============================
-            // 3. Recalcular descuento por línea
-            // ============================
-            if (_lineas != null)
-            {
-                foreach (var line in _lineas)
-                {
-                    var gross = line.GrossAmount;
-                    line.DiscountAmount = Math.Round(gross * discountPercent, 2, MidpointRounding.AwayFromZero);
-                }
-
-                if (dgLineas != null) dgLineas.Items.Refresh();
+                txtIVA.Text = "21";
             }
 
-            // ============================
-            // 4. Calcular totales
-            // ============================
-            _currentQuote.Lines = _lineas?.ToList() ?? new List<QuoteLine>();
+            _currentQuote.VatType = ivaPercent / 100m;
+
+            _currentQuote.Lines = _lineas.ToList();
 
             decimal subtotal = _currentQuote.Subtotal;
             decimal ivaTotal = Math.Round(subtotal * _currentQuote.VatType, 2, MidpointRounding.AwayFromZero);
             decimal total = subtotal + ivaTotal;
 
-            // ============================
-            // 5. Actualizar UI
-            // ============================
-            if (tbSubtotal != null) tbSubtotal.Text = $"Subtotal: {subtotal:F2} €";
-            if (tbIVA != null) tbIVA.Text = $"IVA ({ivaPercent:F2}%): {ivaTotal:F2} €";
-            if (tbTotal != null) tbTotal.Text = $"Total: {total:F2} €";
+            if (tbSubtotal != null)
+                tbSubtotal.Text = $"Subtotal: {subtotal:F2} €";
+
+            if (tbIVA != null)
+                tbIVA.Text = $"IVA ({ivaPercent:F2}%): {ivaTotal:F2} €";
+
+            if (tbTotal != null)
+                tbTotal.Text = $"Total: {total:F2} €";
         }
 
         private void TxtDiscount_Changed(object sender, TextChangedEventArgs e)
@@ -179,18 +151,18 @@ namespace FacturacionDobleEje
             var txt = sender as TextBox;
             if (txt == null) return;
 
-            // 1. Normalizar "." → ","
-            string original = txt.Text;
-            string normalized = original.Replace('.', ',');
+            string normalized = txt.Text.Replace('.', ',');
+            txt.Text = normalized;
+            txt.CaretIndex = txt.Text.Length;
 
-            if (original != normalized)
+            if (!TryParseDecimalFlexible(txt.Text, out var percent))
+                percent = 0;
+
+            foreach (var line in _lineas)
             {
-                int caret = txt.CaretIndex;
-                txt.Text = normalized;
-                txt.CaretIndex = Math.Min(caret + (normalized.Length - original.Length), txt.Text.Length);
+                line.DiscountPercent = percent;
             }
 
-            // 2. Recalcular totales en tiempo real
             UpdateTotals();
         }
 
@@ -398,7 +370,6 @@ namespace FacturacionDobleEje
         private void BtnLimpiar_Click(object sender, RoutedEventArgs e)
         {
             _lineas.Clear();
-            dgLineas.Items.Refresh();
             UpdateTotals();
         }
 
@@ -428,6 +399,66 @@ namespace FacturacionDobleEje
                     }
 
                 }), DispatcherPriority.Background);
+            }
+        }
+
+        private void BtnGenerarPdfFactura_Click(object sender, RoutedEventArgs e)
+        {
+            var cliente = cbClientes.SelectedItem as Client;
+            if (cliente == null)
+            {
+                MessageBox.Show("Selecciona un cliente.", "Atención", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (!_lineas.Any())
+            {
+                MessageBox.Show("Añade alguna línea a la factura.", "Atención", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // Pedir número de factura al usuario
+            string facturaRef = Microsoft.VisualBasic.Interaction.InputBox(
+                "Introduce el número de factura:",
+                "Número de factura",
+                "");
+
+            if (string.IsNullOrWhiteSpace(facturaRef))
+                return;
+
+            _currentQuote.Client = cliente;
+
+            // Guardar como PDF
+            var dlg = new Microsoft.Win32.SaveFileDialog
+            {
+                FileName = $"Factura_{facturaRef}.pdf",
+                Filter = "PDF Files|*.pdf"
+            };
+
+            if (dlg.ShowDialog() == true)
+            {
+                try
+                {
+                    // Creamos copia temporal del presupuesto para no modificar la original
+                    var facturaCopy = new Quote
+                    {
+                        Reference = facturaRef,          // Usamos la referencia de factura
+                        Date = _currentQuote.Date,      // Mantenemos la fecha
+                        Client = _currentQuote.Client,
+                        Lines = _lineas.ToList(),
+                        Status = "Pendiente",
+                        VatType = _currentQuote.VatType
+                    };
+
+                    var pdfGen = new PdfGenerator();
+                    pdfGen.GenerateInvoicePdf(facturaCopy, dlg.FileName, isFactura: true); // nuevo parámetro opcional
+
+                    MessageBox.Show("Factura generada correctamente.", "Listo", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error generando PDF: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
         }
     }

@@ -16,12 +16,13 @@ namespace FacturacionDobleEje.Services
             _companyRepository = new CompanyRepository();
         }
 
-        public void GenerateInvoicePdf(Quote quote, string outputPath)
+        public void GenerateInvoicePdf(Quote quote, string outputPath, bool isFactura = false)
         {
             var empresa = _companyRepository.GetAll().First();
 
             var doc = new Document();
-            doc.Info.Title = $"Presupuesto Nº: " + quote.Reference;
+            string tipoDoc = isFactura ? "Factura" : "Presupuesto";
+            doc.Info.Title = $"{tipoDoc} Nº: {quote.Reference}";
             doc.Info.Author = quote.Client.Name;
 
             // Estilos generales
@@ -96,7 +97,7 @@ namespace FacturacionDobleEje.Services
             var pRight = row.Cells[1].AddParagraph();
             pRight.Format.Alignment = ParagraphAlignment.Right;
             pRight.Format.Font.Size = 14;
-            pRight.AddText("Nº Presupuesto: ");
+            pRight.AddText($"Nº {tipoDoc}: ");
             pRight.AddLineBreak();
             pRight.AddText(quote.Reference);
             pRight.AddLineBreak();
@@ -110,18 +111,20 @@ namespace FacturacionDobleEje.Services
 
             if (showDiscountColumn)
             {
-                table.AddColumn(Unit.FromCentimeter(6));  // descripción
-                table.AddColumn(Unit.FromCentimeter(2));  // cantidad
-                table.AddColumn(Unit.FromCentimeter(3));  // p. unit
-                table.AddColumn(Unit.FromCentimeter(3));  // descuento
-                table.AddColumn(Unit.FromCentimeter(3));  // importe
+                table.AddColumn(Unit.FromCentimeter(3.5)); // Nombre
+                table.AddColumn(Unit.FromCentimeter(4.5));   // Descripción
+                table.AddColumn(Unit.FromCentimeter(2));   // Cantidad
+                table.AddColumn(Unit.FromCentimeter(2.5)); // Precio unitario
+                table.AddColumn(Unit.FromCentimeter(3)); // Descuento
+                table.AddColumn(Unit.FromCentimeter(2.5)); // Importe
             }
             else
             {
-                table.AddColumn(Unit.FromCentimeter(8));    // descripción más ancha
-                table.AddColumn(Unit.FromCentimeter(2.5));  // cantidad
-                table.AddColumn(Unit.FromCentimeter(3.5));  // p. unit
-                table.AddColumn(Unit.FromCentimeter(3));    // importe
+                table.AddColumn(Unit.FromCentimeter(3.5));
+                table.AddColumn(Unit.FromCentimeter(5.5));
+                table.AddColumn(Unit.FromCentimeter(2.5));
+                table.AddColumn(Unit.FromCentimeter(3));
+                table.AddColumn(Unit.FromCentimeter(3.5));
             }
 
             var hdr = table.AddRow();
@@ -131,11 +134,12 @@ namespace FacturacionDobleEje.Services
             hdr.Borders.Top.Width = 1;
             hdr.Borders.Bottom.Width = 1;
 
-            hdr.Cells[0].AddParagraph("Descripción");
-            hdr.Cells[1].AddParagraph("Cant.");
-            hdr.Cells[2].AddParagraph("P. unit (€)");
+            hdr.Cells[0].AddParagraph("Material");
+            hdr.Cells[1].AddParagraph("Descripción");
+            hdr.Cells[2].AddParagraph("Cant.");
+            hdr.Cells[3].AddParagraph("P. unit (€)");
 
-            int colIndex = 3;
+            int colIndex = 4;
 
             if (showDiscountColumn)
             {
@@ -150,10 +154,11 @@ namespace FacturacionDobleEje.Services
                 var r = table.AddRow();
 
                 r.Cells[0].AddParagraph(line.Material.Name);
-                r.Cells[1].AddParagraph(line.Quantity.ToString("0.##"));
-                r.Cells[2].AddParagraph(line.UnitPrice.ToString("0.00"));
+                r.Cells[1].AddParagraph(line.Material.Description ?? "");
+                r.Cells[2].AddParagraph(line.Quantity.ToString("0.##"));
+                r.Cells[3].AddParagraph(line.UnitPrice.ToString("0.00"));
 
-                int c = 3;
+                int c = 4;
 
                 if (showDiscountColumn)
                 {
@@ -162,7 +167,7 @@ namespace FacturacionDobleEje.Services
                 }
 
                 // importe neto
-                r.Cells[c].AddParagraph((line.Amount - line.DiscountAmount).ToString("0.00"));
+                r.Cells[c].AddParagraph((line.Amount).ToString("0.00"));
 
                 r.Borders.Bottom.Width = 0.5;
                 r.Borders.Bottom.Style = BorderStyle.DashSmallGap;

@@ -94,7 +94,7 @@
                         <DataGridTextColumn Header="Material" Binding="{Binding Material.Name}" Width="*" IsReadOnly="True" />
                         <DataGridTextColumn Header="Cantidad" Binding="{Binding Quantity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="90"/>
                         <DataGridTextColumn Header="Precio u. (€)" Binding="{Binding UnitPrice}" Width="100" IsReadOnly="True"/>
-                        <DataGridTextColumn Header="Descuento (€)" Binding="{Binding DiscountAmount}" Width="100" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="Descuento (%)" Binding="{Binding DiscountPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="110"/>
                         <DataGridTextColumn Header="Importe (€)" Binding="{Binding Amount}" Width="100" IsReadOnly="True"/>
                     </DataGrid.Columns>
                 </DataGrid>
@@ -107,6 +107,7 @@
                     </StackPanel>
                     <StackPanel Orientation="Vertical">
                         <Button Content="Generar PDF (Presupuesto)" Width="180" Margin="0,0,0,6" Click="BtnGenerarPdf_Click"/>
+                        <Button Content="Generar PDF (Factura)" Width="180" Margin="0,0,0,6" Click="BtnGenerarPdfFactura_Click"/>
                         <Button Content="Limpiar" Width="180" Click="BtnLimpiar_Click"/>
                     </StackPanel>
                 </StackPanel>

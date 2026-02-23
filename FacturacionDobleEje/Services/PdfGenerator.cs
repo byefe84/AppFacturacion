@@ -16,6 +16,21 @@ namespace FacturacionDobleEje.Services
             _companyRepository = new CompanyRepository();
         }
 
+        private string NormalizeDescription(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return text;
+
+            const string zwsp = "\u200B"; // Zero-width space
+
+            return text
+                .Replace("+", "+" + zwsp)
+                .Replace("-", "-" + zwsp)
+                .Replace("_", "_" + zwsp)
+                .Replace("/", "/" + zwsp)
+                .Replace(")", ")" + zwsp);
+        }
+
         public void GenerateInvoicePdf(Quote quote, string outputPath, bool isFactura = false)
         {
             var empresa = _companyRepository.GetAll().First();
@@ -154,7 +169,7 @@ namespace FacturacionDobleEje.Services
                 var r = table.AddRow();
 
                 r.Cells[0].AddParagraph(line.Material.Name);
-                r.Cells[1].AddParagraph(line.Material.Description ?? "");
+                r.Cells[1].AddParagraph(NormalizeDescription(line.Material.Description ?? ""));
                 r.Cells[2].AddParagraph(line.Quantity.ToString("0.##"));
                 var pUnit = r.Cells[3].AddParagraph(line.SaleUnitPrice.ToString("0.00"));
                 pUnit.Format.Alignment = ParagraphAlignment.Right;
